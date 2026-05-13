@@ -1,0 +1,77 @@
+### SentinelAI — Manual test payloads
+### Use with VS Code REST Client extension or httpie
+### Proxy must be running on localhost:8080
+
+### 1. Baseline clean request
+GET http://localhost:8080/get
+User-Agent: Mozilla/5.0
+
+###
+
+### 2. SQL Injection (A03)
+GET http://localhost:8080/get?id=1'+UNION+SELECT+username,password+FROM+users--
+User-Agent: Mozilla/5.0
+
+###
+
+### 3. XSS (A03)
+POST http://localhost:8080/post
+Content-Type: application/json
+
+{
+  "comment": "<script>alert('xss')</script>",
+  "user": "attacker"
+}
+
+###
+
+### 4. SSRF — cloud metadata (A10)
+GET http://localhost:8080/get?url=http://169.254.169.254/latest/meta-data/
+User-Agent: Mozilla/5.0
+
+###
+
+### 5. JWT alg:none (A07) — header: eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0
+GET http://localhost:8080/get
+Authorization: Bearer eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJzdWIiOiJhZG1pbiJ9.
+
+###
+
+### 6. Token in URL (A07)
+GET http://localhost:8080/get?api_key=supersecrettoken12345678
+
+###
+
+### 7. Sensitive data in request body (A02)
+POST http://localhost:8080/post
+Content-Type: application/json
+
+{
+  "username": "admin",
+  "password": "MyP@ssw0rd123"
+}
+
+###
+
+### 8. Admin path without auth (A01)
+GET http://localhost:8080/admin/users
+
+###
+
+### 9. Mass assignment / privilege escalation (A08)
+POST http://localhost:8080/post
+Content-Type: application/json
+
+{
+  "username": "alice",
+  "is_admin": true,
+  "role": "admin"
+}
+
+###
+
+### 10. Known scanner User-Agent (A09)
+GET http://localhost:8080/get
+User-Agent: sqlmap/1.7.8
+
+###
