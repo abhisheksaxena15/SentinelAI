@@ -11,6 +11,7 @@ Every HTTP request is:
   5. Response returned to caller unchanged
 """
 
+from importlib.resources import path
 import os
 import json
 import logging
@@ -18,6 +19,7 @@ import httpx
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
+from streamlit import query_params
 
 from utils.database import init_db, log_request
 from engine import analyze
@@ -65,6 +67,11 @@ async def proxy_handler(request: Request, path: str):
     )
 
     query_params = unquote(str(request.query_params))
+# Clean endpoint for dashboard display
+    clean_endpoint = f"/{path}"
+
+    if query_params:
+        clean_endpoint += f"?{query_params}"   
     client_ip     = request.client.host if request.client else "unknown"
     req_headers   = dict(request.headers)
 
@@ -105,7 +112,7 @@ async def proxy_handler(request: Request, path: str):
     # ── 3. Log request to SQLite ──────────────────────────────────────────────
     request_id = log_request({
         "method":       request.method,
-        "path":         path,
+        "path":         clean_endpoint,
         "query_params": query_params,
         "headers":      json.dumps(req_headers),
         "body":         request_body[:4000],
