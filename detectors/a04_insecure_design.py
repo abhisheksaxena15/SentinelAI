@@ -13,6 +13,19 @@ Detects:
 import re
 from typing import Optional
 
+SENSITIVE_ENUM_PATHS = [
+    "admin",
+    "backup",
+    "config",
+    "debug",
+    ".git",
+    ".env",
+    "phpinfo",
+    "swagger",
+    "graphql",
+    "actuator",
+]
+
 REQUIRED_SECURITY_HEADERS = {
     "x-content-type-options":        "Prevents MIME-sniffing",
     "x-frame-options":               "Prevents clickjacking",
@@ -32,11 +45,14 @@ ERROR_PATTERNS = [
 ]
 
 DEBUG_PATHS = re.compile(
-    r"(?i)/(debug|test|phpinfo|_profiler|swagger|openapi|graphql|__debug__|actuator)"
+    r"(?i)/(debug|test|phpinfo|_profiler|swagger|openapi|graphql|__debug__|actuator)(/|$)"
 )
-
 DANGEROUS_UPLOADS = re.compile(
     r"(?i)(content-type:\s*(application/x-php|text/x-script|application/x-msdownload))"
+)
+
+SUSPICIOUS_PROBES = re.compile(
+    r"(?i)(\.\./|etc/passwd|select.+from|union.+select|<script|169\.254\.169\.254)"
 )
 
 def detect(
@@ -82,15 +98,16 @@ def detect(
             break
 
     # 3. Debug / introspection endpoint accessed
-    if DEBUG_PATHS.search(path):
+    normalized_path = "/" + path.strip("/")
+    if DEBUG_PATHS.search(normalized_path):
         findings.append({
             "owasp_id":    "A04",
             "owasp_name":  "Insecure Design",
             "threat_type": "Debug/introspection endpoint exposed",
             "severity":    "HIGH",
             "risk_score":  75,
-            "detail":      f"Debug endpoint '{path}' is publicly accessible.",
-            "payload":     path,
+            "detail":      f"Debug endpoint '{normalized_path}' is publicly accessible.",
+            "payload":     normalized_path,
         })
 
     # 4. Dangerous file upload content-type
@@ -105,6 +122,34 @@ def detect(
             "risk_score":  80,
             "detail":      "Request uploads an executable or script file type.",
             "payload":     match.group(0),
+        })
+
+    combined = f"{path} {response_body}"
+
+    if SUSPICIOUS_PROBES.search(combined):
+        findings.append({
+        "owasp_id": "A04",
+        "owasp_name": "Insecure Design",
+        "threat_type": "Suspicious attack reconnaissance",
+        "severity": "HIGH",
+        "risk_score": 70,
+        "detail": "Attacker probing sensitive/internal application surfaces.",
+        "payload": SUSPICIOUS_PROBES.search(combined).group(0),
+    })
+
+    # 5. Sensitive endpoint enumeration / reconnaissance
+    normalized_path = path.lower()
+
+    if response_body and any(p in normalized_path for p in SENSITIVE_ENUM_PATHS):
+
+        findings.append({
+            "owasp_id":    "A04",
+            "owasp_name":  "Insecure Design",
+            "threat_type": "Sensitive endpoint enumeration attempt",
+            "severity":    "HIGH",
+            "risk_score":  72,
+            "detail":      f"Attacker probing sensitive/internal endpoint '{path}'.",
+            "payload":     path,
         })
 
     return findings if findings else None
