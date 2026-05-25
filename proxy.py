@@ -57,7 +57,7 @@ async def startup():
 
 @app.api_route(
     "/{path:path}",
-    methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"],
+    methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD", "TRACE"],
 )
 async def proxy_handler(request: Request, path: str):
     # ── 1. Read request details ───────────────────────────────────────────────

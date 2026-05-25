@@ -81,6 +81,7 @@ def analyze(
 
     # ── A05: Security Misconfiguration ────────────────────────────────────────
     _collect(a05_security_misconfiguration.detect(
+            method=method,
         response_headers=response_headers,
         response_body=response_body,
         request_headers=headers,

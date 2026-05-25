@@ -18,13 +18,21 @@ SERVER_DISCLOSURE = re.compile(
     r"(?i)(apache/\d|nginx/\d|express|flask/\d|django/\d|php/\d|iis/\d)"
 )
 
-DIRECTORY_LISTING = re.compile(r"(?i)(index of /|parent directory)")
-
+DIRECTORY_LISTING = re.compile(
+    r"(?i)(index of /|parent directory|directory listing for|listing directory)"
+)
 INSECURE_COOKIE = re.compile(
     r"(?i)set-cookie\s*:[^\n]+"
 )
 
+
+DANGEROUS_METHODS = {
+    "TRACE",
+    "OPTIONS",
+}
+
 def detect(
+    method: str,
     response_headers: dict,
     response_body: str,
     request_headers: dict,
@@ -43,8 +51,8 @@ def detect(
             "threat_type": "Server version disclosed in headers",
             "severity":    "LOW",
             "risk_score":  35,
-            "detail":      f"Response header reveals server info: '{server_val.strip()}'",
-            "payload":     server_val.strip()[:80],
+            "detail":      f"Response headers disclose backend technology: '{server_val}'",
+            "payload":     server_val[:120],
         })
 
     # 2. Directory listing
@@ -68,8 +76,8 @@ def detect(
             "threat_type": "CORS wildcard misconfiguration",
             "severity":    "MEDIUM",
             "risk_score":  55,
-            "detail":      "Access-Control-Allow-Origin: * allows any origin to read responses.",
-            "payload":     "Access-Control-Allow-Origin: *",
+            "detail":     f"Access-Control-Allow-Origin is dangerously permissive: '{cors}'",
+            "payload":     f"Access-Control-Allow-Origin: {cors}",
         })
 
     # 4. Insecure Set-Cookie flags
@@ -93,5 +101,32 @@ def detect(
                     "detail":      f"Cookie missing flags: {', '.join(missing_flags)}",
                     "payload":     val[:120],
                 })
+    # 5. HTTP instead of HTTPS
+    forwarded_proto = request_headers.get("x-forwarded-proto", "")
+    if forwarded_proto and forwarded_proto.lower() == "http":
+        findings.append({
+            "owasp_id":    "A05",
+            "owasp_name":  "Security Misconfiguration",
+        "threat_type": "Insecure HTTP transport",
+        "severity":    "MEDIUM",
+        "risk_score":  60,
+       "detail":      f"HTTP method '{method}' may expose unsafe functionality.",
+        "payload":     method,
+    })
+        # =========================================================
+    # 6. Dangerous HTTP methods exposed
+    # =========================================================
 
+    if method.upper() in DANGEROUS_METHODS:
+
+        findings.append({
+            "owasp_id":    "A05",
+            "owasp_name":  "Security Misconfiguration",
+            "threat_type": "Dangerous HTTP method enabled",
+            "severity":    "HIGH",
+            "risk_score":  70,
+            "detail":      f"HTTP method '{method}' may expose unsafe functionality.",
+            "payload":     method,
+        })
+        
     return findings if findings else None
