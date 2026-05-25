@@ -61,7 +61,8 @@ def analyze(
     # ── A02: Cryptographic Failures ───────────────────────────────────────────
     _collect(a02_cryptographic_failures.detect(
         headers=headers, request_body=request_body,
-        response_body=response_body, response_headers=response_headers,
+        response_body=response_body,
+        query_params=query_params, path=path, response_headers=response_headers,
     ))
     
 

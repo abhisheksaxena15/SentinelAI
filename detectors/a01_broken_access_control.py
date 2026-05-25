@@ -15,16 +15,15 @@ from typing import Optional
 
 # Sensitive path patterns that should require auth
 ADMIN_PATH_PATTERNS = [
-    r"(?i)admin",
-    r"(?i)internal",
-    r"(?i)superuser",
-    r"(?i)manage",
-    r"(?i)dashboard",
-    r"(?i)config",
-    r"(?i)actuator",
-    r"(?i)debug",
+    r"(?i)^/admin(/|$)",
+    r"(?i)^/internal(/|$)",
+    r"(?i)^/superuser(/|$)",
+    r"(?i)^/manage(/|$)",
+    r"(?i)^/dashboard(/|$)",
+    r"(?i)^/config(/|$)",
+    r"(?i)^/actuator(/|$)",
+    r"(?i)^/debug(/|$)",
 ]
-
 # IDOR: numeric IDs in URL paths — flag if auth header is absent
 IDOR_PATTERN = re.compile(r"/\d{1,10}(/|$)")
 
@@ -48,7 +47,7 @@ def detect(
 
     # 1. Access to sensitive/admin paths without auth
     for pattern in ADMIN_PATH_PATTERNS:
-        if re.search(pattern, path):
+        if re.search(pattern, "/" + path.strip("/")):
             if not auth_present:
                 findings.append({
                     "owasp_id":    "A01",
@@ -60,8 +59,8 @@ def detect(
                     "payload":     path,
                 })
             # If server returned 200 on admin path — even worse
-    if status_code in [200, 201, 202, 301, 302] and not auth_present:
-       findings.append({
+        
+            if status_code in [200, 201, 202, 301, 302] and not auth_present:       findings.append({
                     "owasp_id":    "A01",
                     "owasp_name":  "Broken Access Control",
                     "threat_type": "Unauthorized access granted (403 bypass)",

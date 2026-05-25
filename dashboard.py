@@ -136,9 +136,12 @@ st.divider()
 st.subheader("🚨 Threat log (latest 100)")
 if not threats.empty:
     display_cols = [c for c in
-        ["timestamp", "severity", "owasp_id", "threat_type", "detail", "payload", "request_id"]
+        ["timestamp", "severity", "owasp_id", "threat_type", "detail", "path", "payload", "request_id"]
         if c in threats.columns]
     df_show = threats[display_cols].sort_values("timestamp", ascending=False).head(1000)
+    df_show.rename(columns={
+        "path": "endpoint"
+    }, inplace=True)
 
     def color_severity(val):
         return f"color: {SEVERITY_COLOR.get(val, '#888')}"
@@ -164,7 +167,8 @@ with st.expander("📋 Raw request log (latest 50)"):
         st.info("No requests logged yet.")
 
 # ── Auto-refresh ──────────────────────────────────────────────────────────────
-# st.markdown(
-#     """<meta http-equiv="refresh" content="5">""",
-#     unsafe_allow_html=True,
-# )
+st.markdown(
+    """<meta http-equiv="refresh" content="20">""",
+    unsafe_allow_html=True,
+)
+

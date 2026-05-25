@@ -27,28 +27,37 @@ SECRET_PATTERNS = {
 # PII patterns
 PII_PATTERNS = {
     "Email address":        re.compile(r'[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}'),
-    "Credit card number":   re.compile(r'\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13})\b'),
+    "Credit card number":   re.compile(r'(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13})'),
     "SSN (US)":             re.compile(r'\b\d{3}-\d{2}-\d{4}\b'),
 }
 
 # Sensitive request fields that should never appear in plaintext
 SENSITIVE_REQUEST_FIELDS = re.compile(
-    r'(?i)(password|passwd|secret|token|credit_card|ssn)\s*[:=]\s*[^\s&"\']{4,}'
+    r'(?i)"?(password|passwd|secret|token|credit_card|ssn)"?\s*[:=]\s*"?[^\s&"]{4,}"?'
 )
 
 def detect(
     headers: dict,
     request_body: str,
     response_body: str,
+    query_params: str = "",
+    path: str = "",
     response_headers: dict = None,
 ) -> Optional[list]:
 
     findings = []
     response_headers = response_headers or {}
 
+    # Combine everything for deep inspection
+    combined_text = f"""
+    {request_body}
+    {response_body}
+    {query_params}
+    {path}
+    """
     # 1. Secrets in response body
     for name, pattern in SECRET_PATTERNS.items():
-        match = pattern.search(response_body)
+        match = pattern.search(combined_text)
         if match:
             findings.append({
                 "owasp_id":    "A02",
@@ -57,25 +66,25 @@ def detect(
                 "severity":    "CRITICAL",
                 "risk_score":  90,
                 "detail":      f"Detected '{name}' pattern in API response body.",
-                "payload":     match.group(0)[:80],
+                "payload":     match[0][:80],
             })
 
     # 2. PII in response body
     for name, pattern in PII_PATTERNS.items():
-        matches = pattern.findall(response_body)
-        if matches:
+        match = pattern.findall(combined_text)
+        if match:
             findings.append({
                 "owasp_id":    "A02",
                 "owasp_name":  "Cryptographic Failures",
                 "threat_type": f"PII exposed in response — {name}",
                 "severity":    "HIGH",
                 "risk_score":  75,
-                "detail":      f"Found {len(matches)} instance(s) of {name} in response.",
-                "payload":     str(matches[0])[:80],
+                "detail":      f"Found {len(match)} instance(s) of {name}",
+                "payload":     str(match[0])[:80],
             })
 
     # 3. Sensitive fields in request body (plaintext passwords etc.)
-    match = SENSITIVE_REQUEST_FIELDS.search(request_body)
+    match = SENSITIVE_REQUEST_FIELDS.search(combined_text)
     if match:
         findings.append({
             "owasp_id":    "A02",
@@ -84,7 +93,7 @@ def detect(
             "severity":    "HIGH",
             "risk_score":  70,
             "detail":      "Password or secret field detected in plaintext request payload.",
-            "payload":     match.group(0)[:80],
+            "payload":     match[0]   [:80],
         })
 
     return findings if findings else None
