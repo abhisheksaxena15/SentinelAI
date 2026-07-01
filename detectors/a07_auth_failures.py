@@ -21,11 +21,13 @@ from datetime import datetime
 # In-memory: track 401 count per IP in the last 60 seconds
 _auth_fail_log: dict = defaultdict(list)
 
+# WEAK_CREDENTIALS = re.compile(
+#     r"(?i)(username|user|login)\s*[:=]\s*(admin|root|test|guest|user|administrator).*"
+#     r"(password|pass|pwd)\s*[:=]\s*(admin|password|1234|123456|test|root|guest|letmein)"
+# )
 WEAK_CREDENTIALS = re.compile(
-    r"(?i)(username|user|login)\s*[:=]\s*(admin|root|test|guest|user|administrator).*"
-    r"(password|pass|pwd)\s*[:=]\s*(admin|password|1234|123456|test|root|guest|letmein)"
+    r'(?i)(admin|root|guest|test).{0,50}(admin|password|123456|guest|root|letmein)'
 )
-
 TOKEN_IN_URL = re.compile(
     r"(?i)[?&](token|api_key|apikey|access_token|secret|key)\s*=\s*[^&\s]{8,}"
 )
@@ -50,8 +52,12 @@ def detect(
 
     findings = []
     lower_headers = {k.lower(): v for k, v in headers.items()}
-    auth_header = lower_headers.get("authorization", "")
-
+    auth_header = (
+        lower_headers.get("authorization")
+        or lower_headers.get("x-access-token")
+        or lower_headers.get("x-auth-token")
+        or ""
+    )
     # 1. Token / API key in URL query params (credential exposure in logs)
     match = TOKEN_IN_URL.search(f"{path}?{query_params}")
     if match:
