@@ -18,14 +18,14 @@ from typing import Optional
 JAVA_SERIAL_B64 = re.compile(r"rO0AB[A-Za-z0-9+/=]{10,}")
 
 # Python pickle magic in base64 or raw
-PYTHON_PICKLE = re.compile(r"(?i)(pickle|cPickle|\.pkl)")
+PYTHON_PICKLE = re.compile(r'(?i)(pickle\.loads|pickle\.load|cPickle|\.pkl)')
 
 # PHP object injection
 PHP_OBJECT = re.compile(r'O:\d+:"[A-Za-z_\\][\w\\]*":\d+:\{')
 
 # Mass assignment / over-posting indicators
 MASS_ASSIGN_FIELDS = re.compile(
-    r'(?i)"(is_admin|role|is_staff|is_superuser|permissions|group_id|privilege|admin)"\s*:\s*(true|1|"admin")'
+    r'(?i)"(is_admin|role|is_staff|is_superuser|permissions|group_id|privilege|admin)"\s*:\s*(true|1|"admin"|"root"|"superadmin")'
 )
 
 # Python prototype / dunder injection
@@ -36,6 +36,20 @@ DUNDER_INJECTION = re.compile(
 # SSTI (Server-Side Template Injection) patterns
 SSTI_PATTERNS = re.compile(
     r"(\{\{.*\}\}|\{%.*%\}|\$\{.*\}|\#\{.*\})"
+)
+# Node.js prototype pollution
+PROTOTYPE_POLLUTION = re.compile(
+    r'(?i)(__proto__|prototype|constructor)'
+)
+
+# Suspicious package names / supply-chain attacks
+PACKAGE_ATTACKS = re.compile(
+    r'(?i)(event-stream|ua-parser-js|node-ipc|ctx|coa)'
+)
+
+# Base64-encoded PowerShell payloads
+ENCODED_PAYLOADS = re.compile(
+    r'(?i)(powershell\s+-enc|base64_decode|eval\s*\()'
 )
 
 def detect(request_body: str, query_params: str) -> Optional[list]:
@@ -115,6 +129,45 @@ def detect(request_body: str, query_params: str) -> Optional[list]:
             "risk_score":  90,
             "detail":      "Template expression syntax detected in input — Jinja2/Twig/EL injection attempt.",
             "payload":     match.group(0)[:80],
+        })
+    
+    # 6. Prototype pollution
+    match = PROTOTYPE_POLLUTION.search(combined)
+    if match:
+        findings.append({
+            "owasp_id": "A08",
+            "owasp_name": "Software and Data Integrity Failures",
+            "threat_type": "Prototype pollution attempt",
+            "severity": "HIGH",
+            "risk_score": 80,
+            "detail": "Prototype pollution keywords detected in request.",
+            "payload": match.group(0)
+        })
+
+    # 7. Supply chain package indicators
+    match = PACKAGE_ATTACKS.search(combined)
+    if match:
+        findings.append({
+            "owasp_id": "A08",
+            "owasp_name": "Software and Data Integrity Failures",
+            "threat_type": "Suspicious package reference",
+            "severity": "MEDIUM",
+            "risk_score": 65,
+            "detail": "Known supply-chain attack package detected.",
+            "payload": match.group(0)
+        })
+
+    # 8. Encoded payload execution
+    match = ENCODED_PAYLOADS.search(combined)
+    if match:
+        findings.append({
+            "owasp_id": "A08",
+            "owasp_name": "Software and Data Integrity Failures",
+            "threat_type": "Encoded execution payload",
+            "severity": "CRITICAL",
+            "risk_score": 92,
+            "detail": "Encoded execution or code evaluation payload detected.",
+            "payload": match.group(0)
         })
 
     return findings if findings else None
