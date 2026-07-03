@@ -27,6 +27,7 @@ def detect(
     findings = []
     lower_headers = {k.lower(): v for k, v in headers.items()}
     user_agent = lower_headers.get("user-agent", "")
+    print("USER AGENT:", user_agent)  # temporary
 
     # 1. Missing User-Agent — common in scanners/scripts
     if not user_agent:
@@ -41,18 +42,46 @@ def detect(
         })
 
     # 2. Known scanner User-Agents
-    scanner_keywords = ("sqlmap", "nikto", "nessus", "burpsuite", "zgrab",
-                        "masscan", "nmap", "dirbuster", "gobuster", "wfuzz")
-    if any(kw in user_agent.lower() for kw in scanner_keywords):
+    scanner_keywords = (
+    "sqlmap",
+    "nikto",
+    "nessus",
+    "burpsuite",
+    "masscan",
+    "zgrab",
+    "nmap",
+    "dirbuster",
+    "gobuster",
+    "wfuzz",
+    "zap",
+    "acunetix",
+    "netsparker",
+    "ffuf",
+    "feroxbuster",
+    "amass",
+    "whatweb",
+    "curl",
+    "python-requests"
+    )
+
+    detected_scanner = None
+
+    for kw in scanner_keywords:
+        if kw in user_agent.lower():
+            detected_scanner = kw
+            break
+
+    if detected_scanner:
         findings.append({
-            "owasp_id":    "A09",
-            "owasp_name":  "Security Logging and Monitoring Failures",
-            "threat_type": "Known security scanner detected",
-            "severity":    "HIGH",
-            "risk_score":  80,
-            "detail":      f"User-Agent matches known scanner: '{user_agent[:80]}'",
-            "payload":     user_agent[:80],
+        "owasp_id":    "A09",
+        "owasp_name":  "Security Logging and Monitoring Failures",
+        "threat_type": f"Known security scanner detected ({detected_scanner})",
+        "severity":    "HIGH",
+        "risk_score":  80,
+        "detail":      f"User-Agent matches known scanner or reconnaissance tool: '{user_agent[:80]}'",
+        "payload":     user_agent[:80],
         })
+
 
     # 3. Abnormally large request body
     if len(request_body) > MAX_BODY_SIZE:
