@@ -14,6 +14,8 @@ Detects:
 import re
 from typing import Optional
 
+from envs.ml.Lib import urllib
+
 # Private / loopback IP ranges
 PRIVATE_IP = re.compile(
     r"(?:^|[=&?/\s])"
@@ -36,22 +38,41 @@ CLOUD_METADATA = re.compile(
 # URL-valued parameters that could be SSRF vectors
 URL_PARAM = re.compile(
     r"(?i)[?&](url|uri|path|redirect|return|next|dest|destination|"
-    r"callback|webhook|host|domain|proxy|target|endpoint|link|src|source)\s*="
+    r"callback|webhook|host|domain|proxy|target|endpoint|link|src|source|"
+    r"image|avatar|feed|api|file|resource|load)\s*="
     r"\s*(https?://|//)([^&\s#]+)"
 )
 
 # Internal hostname patterns in URL params
 INTERNAL_HOST = re.compile(
     r"(?i)(localhost|internal|intranet|corp|local|lan|private|"
-    r"db|redis|postgres|mysql|mongo|elasticsearch|kafka)(\.\w+)*"
-    r"(:\d+)?"
+    r"db|redis|postgres|mysql|mongo|elasticsearch|kafka|"
+    r"docker|kubernetes|consul|vault|rabbitmq|jenkins)"
+    r"(\.\w+)*(:\d+)?"
 )
 
-FILE_SCHEME = re.compile(r"(?i)(file://|dict://|gopher://|ftp://)")
+FILE_SCHEME = re.compile(
+    r"(?i)(file://|dict://|gopher://|ftp://|ldap://|jar://|smb://|tftp://)"
+)
+DNS_REBIND = re.compile(
+    r"(?i)(nip\.io|xip\.io|sslip\.io)"
+)
+
+JSON_URL = re.compile(
+    r'(?i)"(url|uri|host|endpoint|callback|webhook)"\s*:\s*"([^"]+)"'
+)
+
 
 def detect(path: str, query_params: str, request_body: str) -> Optional[list]:
     findings = []
     combined = f"{path}?{query_params} {request_body}"
+
+     # Decode URL-encoded payloads
+    decoded = urllib.parse.unquote(combined)
+
+    # Add decoded content back for scanning
+    combined += " " + decoded
+
 
     # 1. Private IP in request
     match = PRIVATE_IP.search(combined)
@@ -108,5 +129,38 @@ def detect(path: str, query_params: str, request_body: str) -> Optional[list]:
             "detail":      f"Non-HTTP scheme '{match.group(0)}' detected — file read or protocol smuggling.",
             "payload":     match.group(0),
         })
+
+    match = DNS_REBIND.search(combined)
+
+    if re.match:
+        findings.append({
+            "owasp_id": "A10",
+            "owasp_name": "Server-Side Request Forgery (SSRF)",
+            "threat_type": "Possible DNS rebinding attack",
+            "severity": "HIGH",
+            "risk_score": 80,
+            "detail": f"DNS rebinding domain '{re.match.group(0)}' detected.",
+            "payload": re.match.group(0)
+        })
+
+
+
+
+    match = JSON_URL.search(request_body)
+
+    if re.match:
+        target = re.match.group(2)
+
+    if INTERNAL_HOST.search(target) or PRIVATE_IP.search(target):
+        findings.append({
+            "owasp_id": "A10",
+            "owasp_name": "Server-Side Request Forgery (SSRF)",
+            "threat_type": "Internal URL in JSON body",
+            "severity": "CRITICAL",
+            "risk_score": 92,
+            "detail": f"JSON URL points to internal resource '{target}'.",
+            "payload": target[:100]
+        })
+
 
     return findings if findings else None
