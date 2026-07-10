@@ -60,7 +60,8 @@ def detect(
                 })
             # If server returned 200 on admin path — even worse
         
-            if status_code in [200, 201, 202, 301, 302] and not auth_present:       findings.append({
+            if status_code in [200, 201, 202, 301, 302] and not auth_present:       
+                findings.append({
                     "owasp_id":    "A01",
                     "owasp_name":  "Broken Access Control",
                     "threat_type": "Unauthorized access granted (403 bypass)",
