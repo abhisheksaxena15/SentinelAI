@@ -14,7 +14,7 @@ Detects:
 import re
 from typing import Optional
 
-# ── SQL Injection ─────────────────────────────────────────────────────────────
+# ── SQL Injection ────────────────────────────────────────────────────────────
 SQLI_PATTERNS = [
     (re.compile(r"(?i)(\bunion\b.{0,20}\bselect\b)"),            "UNION-based SQLi",   90),
     (re.compile(r"(?i)(\bdrop\s+table\b)"),                      "DDL injection",      95),
@@ -73,8 +73,9 @@ def _scan(text: str, patterns: list, category: str) -> list:
             })
     return findings
 
-def detect(request_body: str, query_params: str, path: str) -> Optional[list]:
-    combined = f"{path} {query_params} {request_body}"
+def detect(
+    request_body: str, query_params: str, path: str, headers: str = "", cookies: str = "" ) -> Optional[list]:
+    combined = f""" {path} {query_params} {request_body} {headers} {cookies} """
     findings = []
     findings += _scan(combined, SQLI_PATTERNS,  "SQL Injection")
     findings += _scan(combined, XSS_PATTERNS,   "XSS")

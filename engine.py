@@ -6,6 +6,7 @@ Calls all 10 OWASP detectors and returns a unified findings list.
 Each finding is also persisted to SQLite and triggers alerts if HIGH/CRITICAL.
 """
 
+from http import cookies
 import logging
 from typing import Optional
 from utils.database import log_threat
@@ -71,6 +72,8 @@ def analyze(
         request_body=request_body,
         query_params=query_params,
         path=path,
+        headers=headers,
+        cookies=cookies
     ))
 
     # ── A04: Insecure Design ──────────────────────────────────────────────────
