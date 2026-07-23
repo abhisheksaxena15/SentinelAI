@@ -13,6 +13,7 @@ Detects:
 
 import re
 from typing import Optional
+from urllib.parse import unquote
 
 # ── SQL Injection ────────────────────────────────────────────────────────────
 SQLI_PATTERNS = [
@@ -73,9 +74,47 @@ def _scan(text: str, patterns: list, category: str) -> list:
             })
     return findings
 
+
+def normalize_input(text: str) -> str:
+    # Decode URL encoding
+    text = unquote(text)
+
+    # Convert to lowercase
+    text = text.lower()
+
+    # Remove SQL comments like /**/
+    text = re.sub(r"/\*.*?\*/", "", text)
+
+    # Replace multiple spaces/newlines with a single space
+    text = re.sub(r"\s+", " ", text)
+
+    return text
+
+
+# Incoming Request
+#         │
+#         ▼
+# Combine Path + Query + Body
+#         │
+#         ▼
+# Normalize Input
+#    • URL decode
+#    • Lowercase
+#    • Remove SQL comments
+#    • Remove extra spaces
+#         │
+#         ▼
+# Run Existing Regex Patterns
+#         │
+#         ▼
+# Generate Findings
+
+
+
 def detect(
     request_body: str, query_params: str, path: str, headers: str = "", cookies: str = "" ) -> Optional[list]:
     combined = f""" {path} {query_params} {request_body} {headers} {cookies} """
+    combined = normalize_input(combined)
     findings = []
     findings += _scan(combined, SQLI_PATTERNS,  "SQL Injection")
     findings += _scan(combined, XSS_PATTERNS,   "XSS")
